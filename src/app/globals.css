@@ -1,26 +1,169 @@
 @import "tailwindcss";
 
 :root {
+  /* Primary — Teal */
+  --primary-00: #041b24;
+  --primary-10: #083344;
+  --primary-20: #0e5572;
+  --primary-30: #1378a0;
+  --primary-40: #189acd;
+  --primary-50: #32b3e7;
+  --primary-60: #5fc4ec;
+  --primary-70: #8dd5f1;
+  --primary-80: #bbe6f7;
+  --primary-90: #e8f7fc;
+
+  /* Accent — Amber */
+  --accent-00: #241a04;
+  --accent-10: #443008;
+  --accent-20: #72500e;
+  --accent-30: #9f7014;
+  --accent-40: #cc9019;
+  --accent-50: #e6a933;
+  --accent-60: #ebbc60;
+  --accent-70: #f1cf8d;
+  --accent-80: #f7e2bb;
+  --accent-90: #fcf5e8;
+
+  /* Neutral */
+  --neutral-00: #131416;
+  --neutral-10: #23252a;
+  --neutral-20: #3a3e45;
+  --neutral-30: #515761;
+  --neutral-40: #686f7d;
+  --neutral-50: #828997;
+  --neutral-60: #9ea3ae;
+  --neutral-70: #babdc5;
+  --neutral-80: #d5d8dc;
+  --neutral-90: #f1f2f3;
+
+  /* Success — Green */
+  --success-00: #03261a;
+  --success-10: #064631;
+  --success-20: #0a7552;
+  --success-30: #0ea473;
+  --success-40: #12d393;
+  --success-50: #2cedad;
+  --success-60: #5bf1bf;
+  --success-70: #8af5d1;
+  --success-80: #b9f9e4;
+  --success-90: #e8fdf6;
+
+  /* Error — Red */
+  --error-00: #260303;
+  --error-10: #460606;
+  --error-20: #750a0a;
+  --error-30: #a40e0e;
+  --error-40: #d31212;
+  --error-50: #ed2c2c;
+  --error-60: #f15b5b;
+  --error-70: #f58a8a;
+  --error-80: #f9b9b9;
+  --error-90: #fde8e8;
+
+  /* Semantic */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: var(--neutral-00);
+  --surface: var(--neutral-90);
+  --surface-hover: var(--neutral-80);
+  --border: var(--neutral-80);
+  --border-light: var(--neutral-90);
+  --text-primary: var(--neutral-00);
+  --text-secondary: var(--neutral-40);
+  --text-muted: var(--neutral-50);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-primary: var(--primary-40);
+  --color-primary-light: var(--primary-80);
+  --color-primary-bg: var(--primary-90);
+  --color-accent: var(--accent-50);
+  --color-accent-light: var(--accent-80);
+  --color-accent-bg: var(--accent-90);
+  --color-success: var(--success-40);
+  --color-success-light: var(--success-80);
+  --color-success-bg: var(--success-90);
+  --color-error: var(--error-40);
+
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-dm-serif);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--neutral-70);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neutral-50);
+}
+
+/* Editor focus styles */
+[contenteditable]:focus {
+  outline: none;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* Slash command palette animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.15s ease-out;
+}
+
+/* Panel slide transitions */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-slide-left {
+  animation: slideInLeft 0.2s ease-out;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.2s ease-out;
 }
