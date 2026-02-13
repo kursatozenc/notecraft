@@ -26,8 +26,6 @@ export interface Insights {
 interface InsightsPanelProps {
   insights: Insights | null;
   isLoading: boolean;
-  isOpen: boolean;
-  onToggle: () => void;
   onInsert: (html: string) => void;
 }
 
@@ -36,8 +34,6 @@ type TabId = "quotes" | "summaries" | "themes";
 export default function InsightsPanel({
   insights,
   isLoading,
-  isOpen,
-  onToggle,
   onInsert,
 }: InsightsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("quotes");
@@ -78,42 +74,8 @@ export default function InsightsPanel({
     onInsert(`<p style="margin: 12px 0;"><strong>${theme.name}:</strong> ${theme.description}</p>`);
   };
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={onToggle}
-        className="h-full w-[48px] flex flex-col items-center justify-center gap-2 border-l border-border-light hover:bg-surface transition-colors"
-        title="Show insights"
-      >
-        <span className="text-lg">✨</span>
-        {insights && (
-          <span className="text-[10px] text-text-muted">
-            {(insights.quotes?.length || 0) + (insights.summaries?.length || 0) + (insights.themes?.length || 0)}
-          </span>
-        )}
-      </button>
-    );
-  }
-
   return (
-    <div className="w-[320px] h-full flex flex-col border-l border-border animate-slide-right">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border-light flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">✨</span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            AI Insights
-          </span>
-        </div>
-        <button
-          onClick={onToggle}
-          className="text-xs text-text-muted hover:text-text-primary p-1"
-          title="Close insights"
-        >
-          ✕
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Tabs */}
       <div className="flex border-b border-border-light shrink-0">
         {tabs.map((tab) => (

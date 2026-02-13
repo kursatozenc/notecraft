@@ -3,7 +3,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import SourcePanel from "@/components/SourcePanel";
 import Editor from "@/components/Editor";
-import InsightsPanel, { Insights } from "@/components/InsightsPanel";
+import RightPanel from "@/components/RightPanel";
+import { Insights } from "@/components/InsightsPanel";
 import ExportButton from "@/components/ExportButton";
 import { useLocalDraft, Source } from "@/hooks/useLocalDraft";
 
@@ -11,7 +12,7 @@ export default function Home() {
   const { draft, isLoaded, updateTitle, updateContent, addSource, removeSource } = useLocalDraft();
   const [insights, setInsights] = useState<Insights | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
-  const [insightsPanelOpen, setInsightsPanelOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [imagePrompt, setImagePrompt] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -25,7 +26,6 @@ export default function Home() {
     }
 
     setIsLoadingInsights(true);
-    setInsightsPanelOpen(true);
 
     try {
       const response = await fetch("/api/insights", {
@@ -112,6 +112,12 @@ export default function Home() {
       setIsGeneratingImage(true);
       setImagePrompt(null);
 
+      // Insert a placeholder while generating
+      const placeholderId = `img-placeholder-${Date.now()}`;
+      insertIntoEditor(
+        `<div id="${placeholderId}" style="margin: 16px 0; padding: 24px; background: linear-gradient(135deg, var(--accent-90), var(--primary-90)); border-radius: 12px; text-align: center; border: 1px dashed var(--neutral-70);"><div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--neutral-40); font-size: 14px;">🎨 <span>Generating "${prompt}"...</span></div></div>`
+      );
+
       try {
         const response = await fetch("/api/generate-image", {
           method: "POST",
@@ -123,25 +129,31 @@ export default function Home() {
 
         const data = await response.json();
 
-        if (data.imageUrl) {
-          insertIntoEditor(
-            `<div style="margin: 16px 0; text-align: center;"><img src="${data.imageUrl}" alt="${prompt}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /><p style="font-size: 12px; color: var(--neutral-50); margin-top: 4px;">Generated: ${prompt}</p></div>`
-          );
-        } else if (data.fallbackText) {
-          insertIntoEditor(
-            `<div style="margin: 16px 0; padding: 16px; background: var(--neutral-90); border-radius: 8px; text-align: center;"><p style="color: var(--neutral-40); font-size: 14px;">🎨 ${data.fallbackText}</p></div>`
-          );
+        // Replace placeholder with actual image
+        const placeholder = editorContainerRef.current?.querySelector(`#${placeholderId}`);
+        if (placeholder) {
+          if (data.imageUrl) {
+            placeholder.outerHTML = `<div style="margin: 16px 0; text-align: center;"><img src="${data.imageUrl}" alt="${prompt}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /><p style="font-size: 12px; color: var(--neutral-50); margin-top: 4px;">Generated: ${prompt}</p></div>`;
+          } else if (data.fallbackText) {
+            placeholder.outerHTML = `<div style="margin: 16px 0; padding: 16px; background: var(--neutral-90); border-radius: 8px; text-align: center;"><p style="color: var(--neutral-40); font-size: 14px;">🎨 ${data.fallbackText}</p></div>`;
+          }
+          // Update content state
+          const editor = editorContainerRef.current?.querySelector("[contenteditable]");
+          if (editor) updateContent(editor.innerHTML);
         }
       } catch (error) {
         console.error("Image generation failed:", error);
-        insertIntoEditor(
-          `<div style="margin: 16px 0; padding: 16px; background: var(--error-90); border-radius: 8px; text-align: center;"><p style="color: var(--error-30); font-size: 14px;">Failed to generate image. Please try again.</p></div>`
-        );
+        const placeholder = editorContainerRef.current?.querySelector(`#${placeholderId}`);
+        if (placeholder) {
+          placeholder.outerHTML = `<div style="margin: 16px 0; padding: 16px; background: var(--error-90); border-radius: 8px; text-align: center;"><p style="color: var(--error-30); font-size: 14px;">Failed to generate image. Try /image again.</p></div>`;
+          const editor = editorContainerRef.current?.querySelector("[contenteditable]");
+          if (editor) updateContent(editor.innerHTML);
+        }
       } finally {
         setIsGeneratingImage(false);
       }
     },
-    [insertIntoEditor]
+    [insertIntoEditor, updateContent, editorContainerRef]
   );
 
   // Smart paste: add URL as source
@@ -221,13 +233,14 @@ export default function Home() {
           />
         </div>
 
-        {/* Insights panel */}
-        <InsightsPanel
+        {/* Right panel: Chat + Insights */}
+        <RightPanel
           insights={insights}
-          isLoading={isLoadingInsights}
-          isOpen={insightsPanelOpen}
-          onToggle={() => setInsightsPanelOpen(!insightsPanelOpen)}
+          isLoadingInsights={isLoadingInsights}
+          isOpen={rightPanelOpen}
+          onToggle={() => setRightPanelOpen(!rightPanelOpen)}
           onInsert={insertIntoEditor}
+          sources={draft.sources}
         />
       </main>
 
@@ -235,9 +248,11 @@ export default function Home() {
       {imagePrompt !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in-up">
-            <h3 className="text-lg font-semibold text-text-primary mb-1">Generate Image</h3>
+            <h3 className="text-lg font-semibold text-text-primary mb-1">
+              🎨 Generate Image
+            </h3>
             <p className="text-sm text-text-muted mb-4">
-              Describe the image you want to create for your newsletter
+              Describe the image you want for your newsletter
             </p>
             <input
               type="text"
