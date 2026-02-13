@@ -14,6 +14,8 @@ interface RightPanelProps {
   onToggle: () => void;
   onInsert: (html: string) => void;
   sources: Source[];
+  defaultTab?: PanelTab;
+  initialChatMessages?: Array<{ id: string; role: "user" | "assistant"; content: string }>;
 }
 
 export default function RightPanel({
@@ -23,8 +25,10 @@ export default function RightPanel({
   onToggle,
   onInsert,
   sources,
+  defaultTab,
+  initialChatMessages,
 }: RightPanelProps) {
-  const [activeTab, setActiveTab] = useState<PanelTab>("chat");
+  const [activeTab, setActiveTab] = useState<PanelTab>(defaultTab ?? "chat");
 
   if (!isOpen) {
     return (
@@ -86,7 +90,7 @@ export default function RightPanel({
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === "chat" ? (
-          <ChatPanel sources={sources} onInsert={onInsert} />
+          <ChatPanel sources={sources} onInsert={onInsert} initialMessages={initialChatMessages} />
         ) : (
           <InsightsPanel
             insights={insights}

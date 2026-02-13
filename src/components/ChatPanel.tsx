@@ -12,6 +12,7 @@ interface Message {
 interface ChatPanelProps {
   sources: Source[];
   onInsert: (html: string) => void;
+  initialMessages?: Message[];
 }
 
 function formatMessage(text: string): string {
@@ -28,12 +29,19 @@ function formatMessage(text: string): string {
   return html;
 }
 
-export default function ChatPanel({ sources, onInsert }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function ChatPanel({ sources, onInsert, initialMessages }: ChatPanelProps) {
+  const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset messages when demo is dismissed (initialMessages becomes undefined)
+  useEffect(() => {
+    if (!initialMessages) {
+      setMessages([]);
+    }
+  }, [initialMessages]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

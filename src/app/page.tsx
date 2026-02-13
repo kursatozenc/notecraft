@@ -7,9 +7,11 @@ import RightPanel from "@/components/RightPanel";
 import { Insights } from "@/components/InsightsPanel";
 import ExportButton from "@/components/ExportButton";
 import { useLocalDraft, Source } from "@/hooks/useLocalDraft";
+import { DEMO_DRAFT, DEMO_INSIGHTS, DEMO_CHAT_MESSAGES } from "@/lib/demoData";
 
 export default function Home() {
-  const { draft, isLoaded, updateTitle, updateContent, addSource, removeSource } = useLocalDraft();
+  const { draft, isLoaded, isDemoMode, updateTitle, updateContent, addSource, removeSource, dismissDemo } =
+    useLocalDraft(DEMO_DRAFT);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -17,6 +19,13 @@ export default function Home() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const insightsDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Set demo insights when in demo mode (no API call)
+  useEffect(() => {
+    if (isDemoMode) {
+      setInsights(DEMO_INSIGHTS);
+    }
+  }, [isDemoMode]);
 
   // Fetch insights when sources change
   const fetchInsights = useCallback(async (sources: Source[]) => {
@@ -48,6 +57,10 @@ export default function Home() {
   // Debounced insights fetch on source changes
   useEffect(() => {
     if (!isLoaded) return;
+
+    // Skip API fetch when all sources are demo sources
+    const allDemoSources = draft.sources.every((s) => s.id.startsWith("demo-"));
+    if (allDemoSources && draft.sources.length > 0) return;
 
     if (insightsDebounceRef.current) {
       clearTimeout(insightsDebounceRef.current);
@@ -175,6 +188,12 @@ export default function Home() {
     [addSource]
   );
 
+  // Dismiss demo and reset everything
+  const handleDismissDemo = useCallback(() => {
+    dismissDemo();
+    setInsights(null);
+  }, [dismissDemo]);
+
   if (!isLoaded) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -214,6 +233,24 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Demo banner */}
+      {isDemoMode && (
+        <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-[var(--accent-90)] border-b border-[var(--accent-80)]">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">✨</span>
+            <span className="text-xs text-[var(--accent-20)] font-medium">
+              You&apos;re viewing a demo — edit anything to make it yours
+            </span>
+          </div>
+          <button
+            onClick={handleDismissDemo}
+            className="text-xs font-medium px-3 py-1 rounded-lg bg-[var(--accent-80)] hover:bg-[var(--accent-70)] text-[var(--accent-10)] transition-colors"
+          >
+            Start fresh
+          </button>
+        </div>
+      )}
+
       {/* Main content: 3-column layout */}
       <main className="flex-1 flex overflow-hidden">
         {/* Source panel */}
@@ -241,6 +278,8 @@ export default function Home() {
           onToggle={() => setRightPanelOpen(!rightPanelOpen)}
           onInsert={insertIntoEditor}
           sources={draft.sources}
+          defaultTab={isDemoMode ? "insights" : "chat"}
+          initialChatMessages={isDemoMode ? DEMO_CHAT_MESSAGES : undefined}
         />
       </main>
 
