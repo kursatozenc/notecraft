@@ -62,12 +62,13 @@
   --error-90: #fde8e8;
 
   /* Semantic */
-  --background: #ffffff;
+  --background: #f7f6f3;
+  --editor-bg: #ffffff;
   --foreground: var(--neutral-00);
-  --surface: var(--neutral-90);
-  --surface-hover: var(--neutral-80);
-  --border: var(--neutral-80);
-  --border-light: var(--neutral-90);
+  --surface: #eeecea;
+  --surface-hover: #e4e2de;
+  --border: #dbd9d4;
+  --border-light: #e8e6e2;
   --text-primary: var(--neutral-00);
   --text-secondary: var(--neutral-40);
   --text-muted: var(--neutral-50);

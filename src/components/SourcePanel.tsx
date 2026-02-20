@@ -21,19 +21,26 @@ function extractDomain(url: string): string {
   }
 }
 
-function getSourceIcon(source: Source): string {
-  if (source.type === "link") return "🔗";
-  return "📝";
+function getFaviconUrl(source: Source): string | null {
+  if (source.type === "link" && source.url) {
+    try {
+      const domain = new URL(source.url).hostname;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function getSourceColor(index: number): string {
   const colors = [
+    "bg-[var(--primary-90)]",
+    "bg-[var(--accent-90)]",
+    "bg-[var(--success-90)]",
     "bg-[var(--primary-80)]",
     "bg-[var(--accent-80)]",
     "bg-[var(--success-80)]",
-    "bg-[var(--primary-70)]",
-    "bg-[var(--accent-70)]",
-    "bg-[var(--success-70)]",
   ];
   return colors[index % colors.length];
 }
@@ -160,38 +167,48 @@ export default function SourcePanel({ sources, onAddSource, onRemoveSource }: So
       <div className="flex-1 overflow-y-auto p-2">
         {isExpanded ? (
           <div className="space-y-2 animate-fade-in-up">
-            {sources.map((source) => (
-              <div
-                key={source.id}
-                className="group p-2.5 rounded-lg bg-surface hover:bg-surface-hover cursor-default"
-              >
-                <div className="flex items-start gap-2">
-                  <span className="text-sm shrink-0 mt-0.5">{getSourceIcon(source)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">
-                      {source.title}
-                    </p>
-                    {source.url && (
-                      <p className="text-xs text-text-muted truncate mt-0.5">
-                        {extractDomain(source.url)}
+            {sources.map((source) => {
+              const favicon = getFaviconUrl(source);
+              return (
+                <div
+                  key={source.id}
+                  className="group p-2.5 rounded-xl bg-white border border-[var(--border-light)] hover:border-[var(--border)] hover:shadow-sm cursor-default transition-all"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-[var(--surface)] flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
+                      {favicon ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={favicon} alt="" className="w-4 h-4 object-contain" />
+                      ) : (
+                        <span className="text-xs">📝</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-text-primary truncate leading-snug">
+                        {source.title}
                       </p>
-                    )}
-                    {source.content && (
-                      <p className="text-xs text-text-muted line-clamp-2 mt-0.5">
-                        {source.content}
-                      </p>
-                    )}
+                      {source.url && (
+                        <p className="text-[11px] text-text-muted truncate mt-0.5">
+                          {extractDomain(source.url)}
+                        </p>
+                      )}
+                      {source.content && (
+                        <p className="text-[11px] text-text-muted line-clamp-2 mt-0.5">
+                          {source.content}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => onRemoveSource(source.id)}
+                      className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-[var(--error-40)] shrink-0 text-xs p-0.5 mt-0.5 transition-opacity"
+                      title="Remove source"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button
-                    onClick={() => onRemoveSource(source.id)}
-                    className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-error shrink-0 text-xs p-0.5"
-                    title="Remove source"
-                  >
-                    ✕
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Add URL input */}
             {showUrlInput ? (
@@ -227,28 +244,39 @@ export default function SourcePanel({ sources, onAddSource, onRemoveSource }: So
             )}
 
             {sources.length === 0 && (
-              <div className="text-center py-6">
-                <span className="text-2xl mb-2 block">📎</span>
-                <p className="text-xs text-text-muted">
-                  Drop links or text here
-                </p>
-                <p className="text-xs text-text-muted mt-1">
-                  to fuel AI insights
+              <div className="text-center py-8 px-2">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--surface)] flex items-center justify-center mx-auto mb-3">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--neutral-50)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                </div>
+                <p className="text-xs font-medium text-text-secondary mb-1">Add your sources</p>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  Drop links or paste URLs to fuel AI insights
                 </p>
               </div>
             )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 pt-1">
-            {sources.map((source, i) => (
-              <div
-                key={source.id}
-                className={`w-8 h-8 rounded-full ${getSourceColor(i)} flex items-center justify-center text-xs cursor-default`}
-                title={source.title}
-              >
-                {getSourceIcon(source)}
-              </div>
-            ))}
+            {sources.map((source, i) => {
+              const favicon = getFaviconUrl(source);
+              return (
+                <div
+                  key={source.id}
+                  className={`w-8 h-8 rounded-xl ${getSourceColor(i)} flex items-center justify-center text-xs cursor-default overflow-hidden shadow-sm`}
+                  title={source.title}
+                >
+                  {favicon ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={favicon} alt="" className="w-4 h-4 object-contain" />
+                  ) : (
+                    <span>📝</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

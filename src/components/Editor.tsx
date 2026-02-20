@@ -248,25 +248,27 @@ export default function Editor({
   return (
     <div className="flex-1 flex flex-col h-full relative">
       {/* Editor area */}
-      <div className="flex-1 overflow-y-auto px-8 md:px-16 lg:px-24 py-8">
-        <div
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          className="min-h-[calc(100vh-180px)] text-[var(--neutral-10)] leading-relaxed text-base focus:outline-none prose prose-sm max-w-none"
-          style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          data-placeholder="Start writing your newsletter... Type / for commands"
-        />
+      <div className="flex-1 overflow-y-auto bg-[var(--background)] px-6 py-8">
+        <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-[var(--border-light)] px-10 py-10 min-h-[calc(100vh-160px)]">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="text-[var(--neutral-10)] leading-relaxed text-base focus:outline-none prose prose-sm max-w-none"
+            style={{ fontFamily: "var(--font-inter), system-ui, sans-serif", minHeight: "calc(100vh - 280px)" }}
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            data-placeholder="What's on your mind? Type / for AI commands..."
+          />
+        </div>
       </div>
 
       {/* Word count */}
-      <div className="shrink-0 px-6 py-2 border-t border-border-light flex items-center justify-between">
-        <span className="text-xs text-text-muted">{wordCount} words</span>
+      <div className="shrink-0 px-8 py-2 border-t border-border-light bg-[var(--background)] flex items-center justify-between">
+        <span className="text-xs text-text-muted">{wordCount} {wordCount === 1 ? "word" : "words"}</span>
         <span className="text-xs text-text-muted">
-          {content ? "Saved" : "Start typing..."}
+          {content ? "✓ Saved" : "Start typing..."}
         </span>
       </div>
 

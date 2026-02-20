@@ -205,11 +205,15 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border-light">
+      <header className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-border-light bg-[var(--background)]">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-lg">✏️</span>
-            <span className="text-sm font-semibold text-text-secondary tracking-tight">NoteCraft</span>
+            <div className="w-7 h-7 rounded-lg bg-[var(--primary-40)] flex items-center justify-center shadow-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+            </div>
+            <span className="text-sm font-bold text-[var(--neutral-20)] tracking-tight">NoteCraft</span>
           </div>
           <div className="w-px h-5 bg-border mx-1 shrink-0" />
           <input
@@ -217,7 +221,7 @@ export default function Home() {
             value={draft.title}
             onChange={(e) => updateTitle(e.target.value)}
             placeholder="Untitled Newsletter"
-            className="flex-1 text-lg font-medium bg-transparent border-none outline-none text-text-primary placeholder:text-[var(--neutral-60)] min-w-0"
+            className="flex-1 text-base font-medium bg-transparent border-none outline-none text-text-primary placeholder:text-[var(--neutral-60)] min-w-0"
             style={{ fontFamily: "var(--font-dm-serif), Georgia, serif" }}
           />
         </div>

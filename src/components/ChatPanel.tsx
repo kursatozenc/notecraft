@@ -135,27 +135,34 @@ export default function ChatPanel({ sources, onInsert, initialMessages }: ChatPa
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
-            <span className="text-3xl">💬</span>
-            <p className="text-sm text-text-secondary font-medium">Chat with your sources</p>
-            <p className="text-xs text-text-muted leading-relaxed">
-              Ask questions, explore angles, get writing suggestions based on your sources
-            </p>
-            <div className="space-y-1.5 mt-2 w-full">
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-4">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--primary-90)] flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary-30)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-text-primary mb-1">Chat with your sources</p>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Ask questions, explore angles, or get writing suggestions
+              </p>
+            </div>
+            <div className="space-y-1.5 w-full">
               {[
-                "What are the key themes?",
-                "Suggest a newsletter angle",
-                "Summarize the main arguments",
-              ].map((suggestion) => (
+                { icon: "🔍", text: "What are the key themes?" },
+                { icon: "✏️", text: "Suggest a newsletter angle" },
+                { icon: "📋", text: "Summarize the main arguments" },
+              ].map((s) => (
                 <button
-                  key={suggestion}
+                  key={s.text}
                   onClick={() => {
-                    setInput(suggestion);
+                    setInput(s.text);
                     inputRef.current?.focus();
                   }}
-                  className="w-full text-left text-xs px-3 py-2 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary transition-colors"
+                  className="w-full text-left text-xs px-3 py-2.5 rounded-xl bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-text-secondary transition-colors flex items-center gap-2.5 border border-transparent hover:border-[var(--border-light)]"
                 >
-                  {suggestion}
+                  <span>{s.icon}</span>
+                  <span>{s.text}</span>
                 </button>
               ))}
             </div>
