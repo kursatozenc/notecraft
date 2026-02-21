@@ -1,197 +1,57 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import Editor from "@/components/Editor";
-import RightPanel from "@/components/RightPanel";
-import { Insights } from "@/components/InsightsPanel";
-import ExportButton from "@/components/ExportButton";
-import { useLocalDraft, Source } from "@/hooks/useLocalDraft";
-import { DEMO_DRAFT, DEMO_INSIGHTS, DEMO_CHAT_MESSAGES } from "@/lib/demoData";
+import { useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useLocalDrafts } from "@/hooks/useLocalDrafts";
+
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function groupByDate(drafts: ReturnType<typeof useLocalDrafts>["drafts"]) {
+  const groups: Record<string, typeof drafts> = {};
+  for (const draft of drafts) {
+    const d = new Date(draft.updatedAt);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+    let label: string;
+    if (diffDays === 0) label = "Today";
+    else if (diffDays === 1) label = "Yesterday";
+    else if (diffDays < 7) label = "This week";
+    else if (diffDays < 30) label = "This month";
+    else label = d.toLocaleDateString([], { month: "long", year: "numeric" });
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(draft);
+  }
+  return groups;
+}
 
 export default function Home() {
-  const { draft, isLoaded, isDemoMode, updateTitle, updateContent, addSource, removeSource, dismissDemo } =
-    useLocalDraft(DEMO_DRAFT);
-  const [insights, setInsights] = useState<Insights | null>(null);
-  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [imagePrompt, setImagePrompt] = useState<string | null>(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const insightsDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
+  const { drafts, isLoaded, createDraft, deleteDraft } = useLocalDrafts();
 
-  // Set demo insights when in demo mode (no API call)
-  useEffect(() => {
-    if (isDemoMode) {
-      setInsights(DEMO_INSIGHTS);
-    }
-  }, [isDemoMode]);
+  const handleNew = useCallback(() => {
+    const id = createDraft();
+    router.push(`/draft/${id}`);
+  }, [createDraft, router]);
 
-  // Fetch insights when sources change
-  const fetchInsights = useCallback(async (sources: Source[]) => {
-    if (sources.length === 0) {
-      setInsights(null);
-      return;
-    }
+  const handleDelete = useCallback((e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (confirm("Delete this draft?")) deleteDraft(id);
+  }, [deleteDraft]);
 
-    setIsLoadingInsights(true);
-
-    try {
-      const response = await fetch("/api/insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sources }),
-      });
-
-      if (!response.ok) throw new Error("Failed to fetch insights");
-
-      const data = await response.json();
-      setInsights(data);
-    } catch (error) {
-      console.error("Failed to fetch insights:", error);
-    } finally {
-      setIsLoadingInsights(false);
-    }
-  }, []);
-
-  // Debounced insights fetch on source changes
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    // Skip API fetch when all sources are demo sources
-    const allDemoSources = draft.sources.every((s) => s.id.startsWith("demo-"));
-    if (allDemoSources && draft.sources.length > 0) return;
-
-    if (insightsDebounceRef.current) {
-      clearTimeout(insightsDebounceRef.current);
-    }
-
-    insightsDebounceRef.current = setTimeout(() => {
-      if (draft.sources.length > 0) {
-        fetchInsights(draft.sources);
-      }
-    }, 1000);
-
-    return () => {
-      if (insightsDebounceRef.current) {
-        clearTimeout(insightsDebounceRef.current);
-      }
-    };
-  }, [draft.sources, isLoaded, fetchInsights]);
-
-  // Insert HTML into editor
-  const insertIntoEditor = useCallback((html: string) => {
-    const editorEl = editorContainerRef.current?.querySelector("[contenteditable]") as
-      | (HTMLDivElement & { insertAtCursor?: (html: string) => void })
-      | null;
-    if (editorEl?.insertAtCursor) {
-      editorEl.insertAtCursor(html);
-    }
-  }, []);
-
-  // Handle slash commands
-  const handleSlashCommand = useCallback(
-    (commandId: string) => {
-      if (commandId === "image") {
-        setImagePrompt("");
-      } else if (commandId === "summarize") {
-        if (insights?.summaries?.[0]) {
-          insertIntoEditor(
-            `<p style="margin: 12px 0;">${insights.summaries[0].text}</p>`
-          );
-        } else {
-          insertIntoEditor(
-            `<p style="color: var(--neutral-50); font-style: italic;">Add sources to generate summaries...</p>`
-          );
-        }
-      } else if (commandId === "quote") {
-        if (insights?.quotes?.[0]) {
-          insertIntoEditor(
-            `<blockquote style="border-left: 3px solid var(--accent-50); padding-left: 12px; margin: 12px 0; color: var(--neutral-30); font-style: italic;">"${insights.quotes[0].text}"<br><small style="color: var(--neutral-50);">— ${insights.quotes[0].source}</small></blockquote>`
-          );
-        } else {
-          insertIntoEditor(
-            `<p style="color: var(--neutral-50); font-style: italic;">Add sources to pull quotes...</p>`
-          );
-        }
-      }
-    },
-    [insights, insertIntoEditor]
-  );
-
-  // Handle image generation
-  const handleGenerateImage = useCallback(
-    async (prompt: string) => {
-      setIsGeneratingImage(true);
-      setImagePrompt(null);
-
-      // Insert a placeholder while generating
-      const placeholderId = `img-placeholder-${Date.now()}`;
-      insertIntoEditor(
-        `<div id="${placeholderId}" style="margin: 16px 0; padding: 24px; background: linear-gradient(135deg, var(--accent-90), var(--primary-90)); border-radius: 12px; text-align: center; border: 1px dashed var(--neutral-70);"><div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--neutral-40); font-size: 14px;">🎨 <span>Generating "${prompt}"...</span></div></div>`
-      );
-
-      try {
-        const response = await fetch("/api/generate-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt }),
-        });
-
-        if (!response.ok) throw new Error("Failed to generate image");
-
-        const data = await response.json();
-
-        // Replace placeholder with actual image
-        const placeholder = editorContainerRef.current?.querySelector(`#${placeholderId}`);
-        if (placeholder) {
-          if (data.imageUrl) {
-            placeholder.outerHTML = `<div style="margin: 16px 0; text-align: center;"><img src="${data.imageUrl}" alt="${prompt}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /><p style="font-size: 12px; color: var(--neutral-50); margin-top: 4px;">Generated: ${prompt}</p></div>`;
-          } else if (data.fallbackText) {
-            placeholder.outerHTML = `<div style="margin: 16px 0; padding: 16px; background: var(--neutral-90); border-radius: 8px; text-align: center;"><p style="color: var(--neutral-40); font-size: 14px;">🎨 ${data.fallbackText}</p></div>`;
-          }
-          // Update content state
-          const editor = editorContainerRef.current?.querySelector("[contenteditable]");
-          if (editor) updateContent(editor.innerHTML);
-        }
-      } catch (error) {
-        console.error("Image generation failed:", error);
-        const placeholder = editorContainerRef.current?.querySelector(`#${placeholderId}`);
-        if (placeholder) {
-          placeholder.outerHTML = `<div style="margin: 16px 0; padding: 16px; background: var(--error-90); border-radius: 8px; text-align: center;"><p style="color: var(--error-30); font-size: 14px;">Failed to generate image. Try /image again.</p></div>`;
-          const editor = editorContainerRef.current?.querySelector("[contenteditable]");
-          if (editor) updateContent(editor.innerHTML);
-        }
-      } finally {
-        setIsGeneratingImage(false);
-      }
-    },
-    [insertIntoEditor, updateContent, editorContainerRef]
-  );
-
-  // Smart paste: add URL as source
-  const handleSmartPaste = useCallback(
-    (url: string) => {
-      let domain: string;
-      try {
-        domain = new URL(url).hostname.replace("www.", "");
-      } catch {
-        domain = url;
-      }
-      addSource({
-        id: Math.random().toString(36).substring(2, 9),
-        type: "link",
-        title: domain,
-        url,
-      });
-    },
-    [addSource]
-  );
-
-  // Dismiss demo and reset everything
-  const handleDismissDemo = useCallback(() => {
-    dismissDemo();
-    setInsights(null);
-  }, [dismissDemo]);
+  const groups = groupByDate(drafts);
+  const groupKeys = Object.keys(groups);
 
   if (!isLoaded) {
     return (
@@ -202,125 +62,123 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="min-h-screen bg-[var(--background)] flex flex-col">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-border-light bg-[var(--background)]">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-[var(--primary-40)] flex items-center justify-center shadow-sm">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <header className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border-light bg-[var(--background)] sticky top-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-[var(--primary-40)] flex items-center justify-center shadow-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </div>
+          <span className="text-sm font-bold text-[var(--neutral-20)] tracking-tight">NoteCraft</span>
+        </div>
+
+        <button
+          onClick={handleNew}
+          className="flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-xl bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] transition-colors shadow-sm"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New draft
+        </button>
+      </header>
+
+      {/* Content */}
+      <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8">
+        {drafts.length === 0 ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center py-24 gap-5 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--primary-90)] flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary-30)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
             </div>
-            <span className="text-sm font-bold text-[var(--neutral-20)] tracking-tight">NoteCraft</span>
-          </div>
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
-          <input
-            type="text"
-            value={draft.title}
-            onChange={(e) => updateTitle(e.target.value)}
-            placeholder="Untitled Newsletter"
-            className="flex-1 text-base font-medium bg-transparent border-none outline-none text-text-primary placeholder:text-[var(--neutral-60)] min-w-0"
-            style={{ fontFamily: "var(--font-dm-serif), Georgia, serif" }}
-          />
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 ml-4">
-          {isGeneratingImage && (
-            <span className="text-xs text-text-muted flex items-center gap-1.5">
-              <span className="w-3 h-3 border-2 border-[var(--accent-80)] border-t-[var(--accent-50)] rounded-full animate-spin" />
-              Generating image...
-            </span>
-          )}
-          <ExportButton title={draft.title} content={draft.content} />
-        </div>
-      </header>
-
-      {/* Demo banner */}
-      {isDemoMode && (
-        <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-[var(--accent-90)] border-b border-[var(--accent-80)]">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">✨</span>
-            <span className="text-xs text-[var(--accent-20)] font-medium">
-              You&apos;re viewing a demo — edit anything to make it yours
-            </span>
-          </div>
-          <button
-            onClick={handleDismissDemo}
-            className="text-xs font-medium px-3 py-1 rounded-lg bg-[var(--accent-80)] hover:bg-[var(--accent-70)] text-[var(--accent-10)] transition-colors"
-          >
-            Start fresh
-          </button>
-        </div>
-      )}
-
-      {/* Main content: 2-column layout */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Editor — full width */}
-        <div ref={editorContainerRef} className="flex-1 min-w-0">
-          <Editor
-            content={draft.content}
-            onContentChange={updateContent}
-            onSlashCommand={handleSlashCommand}
-            onSmartPaste={handleSmartPaste}
-          />
-        </div>
-
-        {/* Right panel: Chat + Sources + Insights */}
-        <RightPanel
-          insights={insights}
-          isLoadingInsights={isLoadingInsights}
-          isOpen={rightPanelOpen}
-          onToggle={() => setRightPanelOpen(!rightPanelOpen)}
-          onInsert={insertIntoEditor}
-          sources={draft.sources}
-          onAddSource={addSource}
-          onRemoveSource={removeSource}
-          defaultTab={isDemoMode ? "insights" : "chat"}
-          initialChatMessages={isDemoMode ? DEMO_CHAT_MESSAGES : undefined}
-        />
-      </main>
-
-      {/* Image prompt dialog */}
-      {imagePrompt !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in-up">
-            <h3 className="text-lg font-semibold text-text-primary mb-1">
-              🎨 Generate Image
-            </h3>
-            <p className="text-sm text-text-muted mb-4">
-              Describe the image you want for your newsletter
-            </p>
-            <input
-              type="text"
-              value={imagePrompt}
-              onChange={(e) => setImagePrompt(e.target.value)}
-              placeholder="e.g., A minimalist illustration of a person reading..."
-              className="w-full px-4 py-2.5 text-sm rounded-xl border border-border focus:border-[var(--primary-40)] focus:ring-2 focus:ring-[var(--primary-80)] outline-none"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && imagePrompt) handleGenerateImage(imagePrompt);
-                if (e.key === "Escape") setImagePrompt(null);
-              }}
-            />
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setImagePrompt(null)}
-                className="text-sm px-4 py-2 rounded-lg text-text-secondary hover:bg-surface transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => imagePrompt && handleGenerateImage(imagePrompt)}
-                disabled={!imagePrompt}
-                className="text-sm px-4 py-2 rounded-lg bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Generate
-              </button>
+            <div>
+              <p className="text-lg font-semibold text-text-primary mb-2" style={{ fontFamily: "var(--font-dm-serif), Georgia, serif" }}>
+                No drafts yet
+              </p>
+              <p className="text-sm text-text-muted">
+                Start a new draft and bring your sources, ideas, and writing together.
+              </p>
             </div>
+            <button
+              onClick={handleNew}
+              className="flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-xl bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Create your first draft
+            </button>
           </div>
-        </div>
-      )}
+        ) : (
+          /* Draft list grouped by date */
+          <div className="space-y-8">
+            {groupKeys.map((group) => (
+              <section key={group}>
+                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-3 px-1">
+                  {group}
+                </h2>
+                <div className="space-y-1">
+                  {groups[group].map((draft) => (
+                    <Link
+                      key={draft.id}
+                      href={`/draft/${draft.id}`}
+                      className="group flex items-center gap-4 px-4 py-3.5 rounded-2xl hover:bg-white hover:shadow-sm border border-transparent hover:border-[var(--border-light)] transition-all"
+                    >
+                      {/* Icon */}
+                      <div className="shrink-0 w-9 h-9 rounded-xl bg-[var(--surface)] group-hover:bg-[var(--primary-90)] flex items-center justify-center transition-colors">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--neutral-50)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-[var(--primary-30)] transition-colors">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                      </div>
+
+                      {/* Title + excerpt */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary truncate" style={{ fontFamily: "var(--font-dm-serif), Georgia, serif" }}>
+                          {draft.title || "Untitled draft"}
+                        </p>
+                        {draft.excerpt && (
+                          <p className="text-xs text-text-muted truncate mt-0.5">
+                            {draft.excerpt}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Meta chips */}
+                      <div className="shrink-0 flex items-center gap-2 text-[11px] text-text-muted">
+                        {draft.sourceCount > 0 && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--surface)] group-hover:bg-[var(--primary-90)] transition-colors">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            {draft.sourceCount}
+                          </span>
+                        )}
+                        {draft.wordCount > 0 && (
+                          <span className="hidden sm:inline">{draft.wordCount}w</span>
+                        )}
+                        <span className="text-[11px]">{formatDate(draft.updatedAt)}</span>
+                      </div>
+
+                      {/* Delete button (shown on hover) */}
+                      <button
+                        onClick={(e) => handleDelete(e, draft.id)}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-50 transition-all"
+                        title="Delete draft"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                        </svg>
+                      </button>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
