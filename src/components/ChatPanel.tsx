@@ -3,6 +3,21 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Source } from "@/hooks/useLocalDraft";
 
+// Lazy-load PDF.js only when needed
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= Math.min(pdf.numPages, 50); i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    pages.push(textContent.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+  }
+  return pages.join("\n\n");
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -57,11 +72,16 @@ export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInse
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<"url" | "text" | null>(null);
   const [urlInput, setUrlInput] = useState("");
+  const [textInput, setTextInput] = useState("");
+  const [textTitle, setTextTitle] = useState("");
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const prevSourceCountRef = useRef(sources.length);
 
   // Reset messages when demo is dismissed
@@ -88,18 +108,49 @@ export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInse
     prevSourceCountRef.current = curr;
   }, [sources]);
 
+  const closePicker = useCallback(() => {
+    setShowPicker(false);
+    setPickerMode(null);
+    setUrlInput("");
+    setTextInput("");
+    setTextTitle("");
+  }, []);
+
   const handleAddUrl = useCallback(() => {
     if (!urlInput.trim()) return;
     const url = urlInput.startsWith("http") ? urlInput : `https://${urlInput}`;
+    onAddSource({ id: generateId(), type: "link", title: extractDomain(url), url });
+    closePicker();
+  }, [urlInput, onAddSource, closePicker]);
+
+  const handleAddText = useCallback(() => {
+    if (!textInput.trim()) return;
     onAddSource({
       id: generateId(),
-      type: "link",
-      title: extractDomain(url),
-      url,
+      type: "text",
+      title: textTitle.trim() || textInput.substring(0, 40) + "...",
+      content: textInput.trim(),
     });
-    setUrlInput("");
-    setShowUrlInput(false);
-  }, [urlInput, onAddSource]);
+    closePicker();
+  }, [textInput, textTitle, onAddSource, closePicker]);
+
+  const handlePdfUpload = useCallback(async (file: File) => {
+    setIsPdfLoading(true);
+    closePicker();
+    try {
+      const text = await extractPdfText(file);
+      onAddSource({
+        id: generateId(),
+        type: "pdf",
+        title: file.name.replace(/\.pdf$/i, ""),
+        content: text,
+      });
+    } catch (e) {
+      console.error("PDF extraction failed", e);
+    } finally {
+      setIsPdfLoading(false);
+    }
+  }, [onAddSource, closePicker]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -221,35 +272,98 @@ export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInse
             );
           })}
 
-          {/* Add source */}
-          {showUrlInput ? (
-            <div className="flex items-center gap-1 flex-1 min-w-[160px]">
-              <input
-                ref={urlInputRef}
-                type="text"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAddUrl();
-                  if (e.key === "Escape") { setShowUrlInput(false); setUrlInput(""); }
-                }}
-                placeholder="Paste a URL..."
-                className="flex-1 text-xs px-2 py-1 rounded-lg border border-[var(--primary-40)] focus:ring-1 focus:ring-[var(--primary-80)] outline-none bg-white"
-                autoFocus
-              />
-              <button onClick={handleAddUrl} className="text-xs px-2 py-1 rounded-lg bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] shrink-0">
-                Add
-              </button>
-            </div>
-          ) : (
+          {/* Add source — hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); e.target.value = ""; }}
+          />
+
+          {/* Add source button + popover */}
+          <div className="relative">
             <button
-              onClick={() => { setShowUrlInput(true); setTimeout(() => urlInputRef.current?.focus(), 50); }}
+              onClick={() => setShowPicker((v) => !v)}
               className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-dashed border-[var(--border)] text-text-muted hover:border-[var(--primary-40)] hover:text-[var(--primary-30)] hover:bg-[var(--primary-90)] transition-all"
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add source
+              {isPdfLoading ? "Reading PDF..." : "Add source"}
             </button>
-          )}
+
+            {/* Picker dropdown */}
+            {showPicker && !pickerMode && (
+              <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-[var(--border-light)] rounded-xl shadow-lg overflow-hidden w-44">
+                <button
+                  onClick={() => { setPickerMode("url"); setTimeout(() => urlInputRef.current?.focus(), 50); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:bg-[var(--surface)] transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Website URL
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:bg-[var(--surface)] transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  PDF / Paper
+                </button>
+                <button
+                  onClick={() => { setPickerMode("text"); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:bg-[var(--surface)] transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+                  Paste text
+                </button>
+              </div>
+            )}
+
+            {/* URL input mode */}
+            {showPicker && pickerMode === "url" && (
+              <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-[var(--border-light)] rounded-xl shadow-lg p-2.5 w-64">
+                <input
+                  ref={urlInputRef}
+                  type="text"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddUrl(); if (e.key === "Escape") closePicker(); }}
+                  placeholder="https://..."
+                  className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border)] focus:border-[var(--primary-40)] focus:ring-1 focus:ring-[var(--primary-80)] outline-none mb-2"
+                  autoFocus
+                />
+                <div className="flex gap-1.5">
+                  <button onClick={closePicker} className="flex-1 text-xs py-1.5 rounded-lg border border-[var(--border)] text-text-muted hover:bg-[var(--surface)] transition-colors">Cancel</button>
+                  <button onClick={handleAddUrl} className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] transition-colors">Add</button>
+                </div>
+              </div>
+            )}
+
+            {/* Text paste mode */}
+            {showPicker && pickerMode === "text" && (
+              <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-[var(--border-light)] rounded-xl shadow-lg p-2.5 w-72">
+                <input
+                  type="text"
+                  value={textTitle}
+                  onChange={(e) => setTextTitle(e.target.value)}
+                  placeholder="Title (optional)"
+                  className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border)] focus:border-[var(--primary-40)] outline-none mb-2"
+                  autoFocus
+                />
+                <textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") closePicker(); }}
+                  placeholder="Paste your text, abstract, or notes here..."
+                  className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border)] focus:border-[var(--primary-40)] outline-none resize-none mb-2"
+                  rows={5}
+                />
+                <div className="flex gap-1.5">
+                  <button onClick={closePicker} className="flex-1 text-xs py-1.5 rounded-lg border border-[var(--border)] text-text-muted hover:bg-[var(--surface)] transition-colors">Cancel</button>
+                  <button onClick={handleAddText} disabled={!textInput.trim()} className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] disabled:opacity-40 transition-colors">Add</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

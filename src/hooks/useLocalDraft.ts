@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 export interface Source {
   id: string;
-  type: "link" | "text";
+  type: "link" | "text" | "pdf";
   title: string;
   url?: string;
   content?: string;
