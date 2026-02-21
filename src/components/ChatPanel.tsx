@@ -11,8 +11,32 @@ interface Message {
 
 interface ChatPanelProps {
   sources: Source[];
+  onAddSource: (source: Source) => void;
+  onRemoveSource: (id: string) => void;
   onInsert: (html: string) => void;
   initialMessages?: Message[];
+}
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch {
+    return url;
+  }
+}
+
+function getFaviconUrl(source: Source): string | null {
+  if (source.type === "link" && source.url) {
+    try {
+      const domain = new URL(source.url).hostname;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    } catch { return null; }
+  }
+  return null;
 }
 
 function formatMessage(text: string): string {
@@ -29,19 +53,53 @@ function formatMessage(text: string): string {
   return html;
 }
 
-export default function ChatPanel({ sources, onInsert, initialMessages }: ChatPanelProps) {
+export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInsert, initialMessages }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const prevSourceCountRef = useRef(sources.length);
 
-  // Reset messages when demo is dismissed (initialMessages becomes undefined)
+  // Reset messages when demo is dismissed
   useEffect(() => {
     if (!initialMessages) {
       setMessages([]);
     }
   }, [initialMessages]);
+
+  // Auto-message when a new source is added
+  useEffect(() => {
+    const prev = prevSourceCountRef.current;
+    const curr = sources.length;
+    if (curr > prev) {
+      const newSource = sources[curr - 1];
+      const label = newSource.url ? extractDomain(newSource.url) : newSource.title;
+      const autoMsg: Message = {
+        id: generateId(),
+        role: "assistant",
+        content: `Got it — I've read **${label}**. What would you like to know?`,
+      };
+      setMessages((prev) => [...prev, autoMsg]);
+    }
+    prevSourceCountRef.current = curr;
+  }, [sources]);
+
+  const handleAddUrl = useCallback(() => {
+    if (!urlInput.trim()) return;
+    const url = urlInput.startsWith("http") ? urlInput : `https://${urlInput}`;
+    onAddSource({
+      id: generateId(),
+      type: "link",
+      title: extractDomain(url),
+      url,
+    });
+    setUrlInput("");
+    setShowUrlInput(false);
+  }, [urlInput, onAddSource]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -132,6 +190,69 @@ export default function ChatPanel({ sources, onInsert, initialMessages }: ChatPa
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* Sources strip */}
+      <div className="shrink-0 border-b border-border-light px-3 py-2.5 bg-[var(--background)]">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {sources.map((source) => {
+            const favicon = getFaviconUrl(source);
+            return (
+              <div
+                key={source.id}
+                className="group flex items-center gap-1.5 pl-1.5 pr-1 py-1 rounded-lg bg-white border border-[var(--border-light)] text-xs text-text-secondary hover:border-[var(--border)] transition-all"
+              >
+                {favicon ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={favicon} alt="" className="w-3.5 h-3.5 object-contain rounded-sm" />
+                ) : (
+                  <span className="text-[10px]">📝</span>
+                )}
+                <span className="max-w-[100px] truncate font-medium">
+                  {source.url ? extractDomain(source.url) : source.title}
+                </span>
+                <button
+                  onClick={() => onRemoveSource(source.id)}
+                  className="text-[var(--neutral-60)] hover:text-[var(--error-40)] transition-colors p-0.5 rounded"
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Add source */}
+          {showUrlInput ? (
+            <div className="flex items-center gap-1 flex-1 min-w-[160px]">
+              <input
+                ref={urlInputRef}
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddUrl();
+                  if (e.key === "Escape") { setShowUrlInput(false); setUrlInput(""); }
+                }}
+                placeholder="Paste a URL..."
+                className="flex-1 text-xs px-2 py-1 rounded-lg border border-[var(--primary-40)] focus:ring-1 focus:ring-[var(--primary-80)] outline-none bg-white"
+                autoFocus
+              />
+              <button onClick={handleAddUrl} className="text-xs px-2 py-1 rounded-lg bg-[var(--primary-40)] text-white hover:bg-[var(--primary-30)] shrink-0">
+                Add
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setShowUrlInput(true); setTimeout(() => urlInputRef.current?.focus(), 50); }}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-dashed border-[var(--border)] text-text-muted hover:border-[var(--primary-40)] hover:text-[var(--primary-30)] hover:bg-[var(--primary-90)] transition-all"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add source
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {messages.length === 0 ? (
@@ -255,11 +376,9 @@ export default function ChatPanel({ sources, onInsert, initialMessages }: ChatPa
             </svg>
           </button>
         </div>
-        {sources.length > 0 && (
-          <p className="text-[10px] text-text-muted mt-1.5 px-1">
-            {sources.length} source{sources.length !== 1 ? "s" : ""} loaded • Shift+Enter for new line
-          </p>
-        )}
+        <p className="text-[10px] text-text-muted mt-1.5 px-1">
+          Shift+Enter for new line
+        </p>
       </div>
     </div>
   );

@@ -14,6 +14,8 @@ interface RightPanelProps {
   onToggle: () => void;
   onInsert: (html: string) => void;
   sources: Source[];
+  onAddSource: (source: Source) => void;
+  onRemoveSource: (id: string) => void;
   defaultTab?: PanelTab;
   initialChatMessages?: Array<{ id: string; role: "user" | "assistant"; content: string }>;
 }
@@ -25,6 +27,8 @@ export default function RightPanel({
   onToggle,
   onInsert,
   sources,
+  onAddSource,
+  onRemoveSource,
   defaultTab,
   initialChatMessages,
 }: RightPanelProps) {
@@ -90,7 +94,13 @@ export default function RightPanel({
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === "chat" ? (
-          <ChatPanel sources={sources} onInsert={onInsert} initialMessages={initialChatMessages} />
+          <ChatPanel
+            sources={sources}
+            onAddSource={onAddSource}
+            onRemoveSource={onRemoveSource}
+            onInsert={onInsert}
+            initialMessages={initialChatMessages}
+          />
         ) : (
           <InsightsPanel
             insights={insights}

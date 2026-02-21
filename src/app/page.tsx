@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import SourcePanel from "@/components/SourcePanel";
 import Editor from "@/components/Editor";
 import RightPanel from "@/components/RightPanel";
 import { Insights } from "@/components/InsightsPanel";
@@ -255,16 +254,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main content: 3-column layout */}
+      {/* Main content: 2-column layout */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Source panel */}
-        <SourcePanel
-          sources={draft.sources}
-          onAddSource={addSource}
-          onRemoveSource={removeSource}
-        />
-
-        {/* Editor */}
+        {/* Editor — full width */}
         <div ref={editorContainerRef} className="flex-1 min-w-0">
           <Editor
             content={draft.content}
@@ -274,7 +266,7 @@ export default function Home() {
           />
         </div>
 
-        {/* Right panel: Chat + Insights */}
+        {/* Right panel: Chat + Sources + Insights */}
         <RightPanel
           insights={insights}
           isLoadingInsights={isLoadingInsights}
@@ -282,6 +274,8 @@ export default function Home() {
           onToggle={() => setRightPanelOpen(!rightPanelOpen)}
           onInsert={insertIntoEditor}
           sources={draft.sources}
+          onAddSource={addSource}
+          onRemoveSource={removeSource}
           defaultTab={isDemoMode ? "insights" : "chat"}
           initialChatMessages={isDemoMode ? DEMO_CHAT_MESSAGES : undefined}
         />
