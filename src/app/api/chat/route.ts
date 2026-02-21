@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { callGemini } from "@/lib/gemini";
 
 interface SourceInput {
-  type: "link" | "text";
+  type: "link" | "text" | "pdf";
   title: string;
   url?: string;
   content?: string;
@@ -25,16 +25,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Build source context
+    // PDF/text content is truncated to ~4000 chars each to stay within context limits
     const sourceContext =
       sources && sources.length > 0
         ? sources
             .map((s, i) => {
               if (s.type === "link") {
-                return `Source ${i + 1} [Link]: "${s.title}" — ${s.url}`;
+                return `Source ${i + 1} [Website]: "${s.title}" — ${s.url}`;
               }
-              return `Source ${i + 1} [Text]: "${s.title}" — ${s.content?.substring(0, 1000)}`;
+              if (s.type === "pdf") {
+                return `Source ${i + 1} [PDF]: "${s.title}"\n${s.content?.substring(0, 4000) ?? ""}`;
+              }
+              // text
+              return `Source ${i + 1} [Text]: "${s.title}"\n${s.content?.substring(0, 4000) ?? ""}`;
             })
-            .join("\n")
+            .join("\n\n")
         : "No sources have been added yet.";
 
     // Build conversation history for context

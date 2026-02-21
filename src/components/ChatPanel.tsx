@@ -135,8 +135,9 @@ export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInse
   }, [textInput, textTitle, onAddSource, closePicker]);
 
   const handlePdfUpload = useCallback(async (file: File) => {
+    setShowPicker(false);
+    setPickerMode(null);
     setIsPdfLoading(true);
-    closePicker();
     try {
       const text = await extractPdfText(file);
       onAddSource({
@@ -149,8 +150,10 @@ export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInse
       console.error("PDF extraction failed", e);
     } finally {
       setIsPdfLoading(false);
+      // Reset file input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, [onAddSource, closePicker]);
+  }, [onAddSource]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -302,7 +305,12 @@ export default function ChatPanel({ sources, onAddSource, onRemoveSource, onInse
                   Website URL
                 </button>
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    setShowPicker(false);
+                    setPickerMode(null);
+                    // Small delay so the dropdown is fully gone before the dialog opens
+                    setTimeout(() => fileInputRef.current?.click(), 50);
+                  }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:bg-[var(--surface)] transition-colors"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
